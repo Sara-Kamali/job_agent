@@ -33,6 +33,11 @@ class DigestHandler(BaseHTTPRequestHandler):
             ]
             body = build_html(jobs).encode("utf-8")
             self._respond(200, "text/html; charset=utf-8", body)
+        elif self.path == "/get-cv":
+            config = load_config()
+            cv_text = config.get("cv_text", "")
+            response = json.dumps({"cv_text": cv_text}).encode()
+            self._respond(200, "application/json", response)
         elif self.path == "/status":
             rows = get_recent_jobs(days=self.days)
             # Count includes all saved jobs so page reloads when any new job arrives
@@ -121,6 +126,9 @@ class DigestHandler(BaseHTTPRequestHandler):
 
             <div id="cv-status"></div>
             <p class="hint">Current CV: {cv_chars} characters</p>
+            <button type="button" onclick="showCurrentCV()" style="display: inline-block; margin-top: 10px; background: #6366f1;">👁️ Preview Current CV</button>
+            <button type="button" onclick="clearCV()" style="display: inline-block; margin-top: 10px; background: #ef4444;">❌ Clear CV</button>
+            <div id="cv-preview" style="margin-top: 15px; padding: 10px; background: #f3f4f6; border-radius: 4px; max-height: 200px; overflow-y: auto; display: none; white-space: pre-wrap; font-family: monospace; font-size: 12px;"></div>
         </form>
     </section>
 
@@ -202,6 +210,49 @@ class DigestHandler(BaseHTTPRequestHandler):
                 document.getElementById('run-status').textContent = '❌ Error: ' + e.message;
             }}
         }}
+
+        async function showCurrentCV() {{
+            try {{
+                const r = await fetch('/get-cv');
+                const data = await r.json();
+                const preview = document.getElementById('cv-preview');
+                if (data.cv_text) {{
+                    preview.textContent = data.cv_text.substring(0, 1000);
+                    if (data.cv_text.length > 1000) {{
+                        preview.textContent += '\\n\\n... (' + (data.cv_text.length - 1000) + ' more characters)';
+                    }}
+                    preview.style.display = 'block';
+                }} else {{
+                    preview.textContent = 'No CV loaded';
+                    preview.style.display = 'block';
+                }}
+            }} catch (e) {{
+                alert('Error: ' + e.message);
+            }}
+        }}
+
+        async function clearCV() {{
+            if (!confirm('Clear the uploaded CV? You will need to upload a new one.')) {{
+                return;
+            }}
+            try {{
+                const r = await fetch('/clear-cv', {{ method: 'POST' }});
+                const data = await r.json();
+                const status = document.getElementById('cv-status');
+                if (data.ok) {{
+                    status.textContent = '✅ CV cleared. Upload a new one.';
+                    status.className = 'success';
+                    document.getElementById('cv-preview').style.display = 'none';
+                    location.reload();
+                }} else {{
+                    status.textContent = '❌ Error: ' + (data.error || 'Could not clear CV');
+                    status.className = 'error';
+                }}
+            }} catch (e) {{
+                document.getElementById('cv-status').textContent = '❌ Error: ' + e.message;
+                document.getElementById('cv-status').className = 'error';
+            }}
+        }}
     </script>
 </body>
 </html>"""
@@ -222,6 +273,9 @@ class DigestHandler(BaseHTTPRequestHandler):
             params = parse_qs(body)
 
             config = load_config()
+            # Preserve existing cv_text and other fields
+            existing_cv_text = config.get("cv_text", "")
+
             config["roles"] = [r.strip() for r in params.get("roles", [""])[0].split("\n") if r.strip()]
             config["locations"] = [l.strip() for l in params.get("locations", [""])[0].split("\n") if l.strip()]
 
@@ -229,6 +283,10 @@ class DigestHandler(BaseHTTPRequestHandler):
                 config["match_threshold"] = float(params.get("match_threshold", ["0.75"])[0])
             except (ValueError, IndexError):
                 config["match_threshold"] = 0.75
+
+            # Safeguard: restore cv_text if it was lost
+            if not config.get("cv_text") and existing_cv_text:
+                config["cv_text"] = existing_cv_text
 
             save_config(config)
 
@@ -289,6 +347,7 @@ class DigestHandler(BaseHTTPRequestHandler):
                 def run_pipeline_bg():
                     from main import run_pipeline
                     config = load_config()
+                    print(f"[Server /run] Loaded config: cv_text_len={len(config.get('cv_text', ''))}")
                     _state["processing"] = True
                     try:
                         asyncio.run(run_pipeline(config, test_mode=False))
@@ -307,6 +366,16 @@ class DigestHandler(BaseHTTPRequestHandler):
                 with get_connection() as conn:
                     conn.execute("DELETE FROM seen_jobs")
                     conn.commit()
+                response = json.dumps({"ok": True}).encode()
+                self._respond(200, "application/json", response)
+            except Exception as e:
+                response = json.dumps({"ok": False, "error": str(e)}).encode()
+                self._respond(400, "application/json", response)
+        elif self.path == "/clear-cv":
+            try:
+                config = load_config()
+                config["cv_text"] = ""
+                save_config(config)
                 response = json.dumps({"ok": True}).encode()
                 self._respond(200, "application/json", response)
             except Exception as e:

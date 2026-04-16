@@ -12,7 +12,7 @@ import ollama
 
 from core.resume_data import MARAL_RESUME_EN, MARAL_RESUME_DE
 
-MODEL = "qwen3:latest"
+MODEL = "gemma4:e4b"
 
 
 def _call(prompt: str, max_tokens: int = 1024) -> str:
@@ -72,11 +72,13 @@ def score_job(job: Dict, threshold: float = 0.60, cv_text: str = None) -> Tuple[
     # Use provided CV text, or fall back to EN/DE auto-detect
     if cv_text:
         resume = cv_text
+        print(f"[Agent] Using uploaded CV ({len(cv_text)} chars)")
     else:
         # Use DE resume if job is likely German-language
         de_keywords = ["wir suchen", "ihre aufgaben", "kenntnisse", "deutsch", "anforderungen"]
         is_german = any(kw in description.lower() for kw in de_keywords)
         resume = MARAL_RESUME_DE if is_german else MARAL_RESUME_EN
+        print(f"[Agent] Using fallback resume ({'DE' if is_german else 'EN'})")
 
     # Extract domain keywords from CV to guide scoring
     domain_keywords = _extract_domain_keywords(resume)

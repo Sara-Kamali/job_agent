@@ -112,6 +112,9 @@ async def run_pipeline(config: dict, test_mode: bool = False):
     match_threshold = config.get("match_threshold", MATCH_THRESHOLD)
     title_keywords = [kw.lower() for kw in roles]  # Use roles as title keywords
 
+    # DEBUG: Log what we loaded
+    log(f"Loaded config: roles={roles}, cv_text_len={len(cv_text) if cv_text else 0}, threshold={match_threshold}")
+
     # Step 1: Start live digest server immediately (before scraping)
     httpd = start_server_thread()
 
