@@ -206,7 +206,7 @@ def build_html(jobs: List[Dict]) -> str:
         <!-- Navigation -->
         <div style="margin-bottom:20px;display:flex;gap:16px;justify-content:space-between;">
           <div style="display:flex;gap:16px;">
-            <a href="/" style="color:#2563eb;text-decoration:none;font-weight:500;">📊 Job Digest</a>
+            <a href="/digest" style="color:#2563eb;text-decoration:none;font-weight:500;">📊 Job Digest</a>
             <a href="/settings" style="color:#2563eb;text-decoration:none;font-weight:500;">⚙ Settings</a>
           </div>
           <button onclick="clearCache()" style="background:#e74c3c;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-weight:500;font-size:13px;">🗑️ Clear Cache</button>

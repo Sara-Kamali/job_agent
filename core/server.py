@@ -5,6 +5,7 @@ User preferences are now managed via browser localStorage only.
 """
 import asyncio
 import json
+import socket
 import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -20,7 +21,12 @@ class DigestHandler(BaseHTTPRequestHandler):
     days = 30
 
     def do_GET(self):
-        if self.path == "/":
+        if self.path == "/" or self.path == "":
+            self.send_response(302)
+            self.send_header("Location", "/settings")
+            self.end_headers()
+            return
+        elif self.path == "/digest":
             from core.emailer import build_html
             from core.filters import title_matches, MATCH_THRESHOLD
             rows = get_recent_jobs(days=self.days)
@@ -68,7 +74,7 @@ class DigestHandler(BaseHTTPRequestHandler):
 </head>
 <body>
     <nav>
-        <a href="/">📊 Job Digest</a>
+        <a href="/digest">📊 Job Digest</a>
         <a href="/settings" class="active">⚙ Settings</a>
     </nav>
 
@@ -223,28 +229,32 @@ class DigestHandler(BaseHTTPRequestHandler):
         async function startRun() {
             const config = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
             if (!config.roles || config.roles.length === 0) {
-                alert('Please add at least one role keyword before starting search');
+                showStatus('❌ Please add at least one role keyword', 'error');
                 return;
             }
             if (!config.locations || config.locations.length === 0) {
-                alert('Please add at least one location before starting search');
+                showStatus('❌ Please add at least one location', 'error');
                 return;
             }
             try {
+                showStatus('⏳ Starting search...', 'info');
                 const r = await fetch('/run', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(config),
                 });
                 const data = await r.json();
-                const status = document.getElementById('run-status');
                 if (data.ok) {
-                    status.innerHTML = '✅ Search started! Check the <a href="/">Job Digest</a> to see results.';
+                    showStatus('✅ Search started! Redirecting to Job Digest...', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/digest';
+                    }, 1500);
                 } else {
-                    status.textContent = '⚠️ ' + (data.error || 'Could not start search');
+                    showStatus('❌ Error: ' + (data.error || 'Could not start search'), 'error');
                 }
             } catch (e) {
-                document.getElementById('run-status').textContent = '❌ Error: ' + e.message;
+                console.error('[startRun]', e);
+                showStatus('❌ Error: ' + e.message, 'error');
             }
         }
 
@@ -413,9 +423,13 @@ class DigestHandler(BaseHTTPRequestHandler):
 
 def _make_server(days, port):
     DigestHandler.days = days
-    httpd = HTTPServer(("localhost", port), DigestHandler)
-    httpd.allow_reuse_address = True
-    return httpd
+
+    class ReuseAddrHTTPServer(HTTPServer):
+        def server_bind(self):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            super().server_bind()
+
+    return ReuseAddrHTTPServer(("localhost", port), DigestHandler)
 
 
 def start_server_thread(days: int = 30, port: int = 8765):
