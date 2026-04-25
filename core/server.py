@@ -66,10 +66,10 @@ class DigestHandler(BaseHTTPRequestHandler):
         button { background: #3498db; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; margin: 10px 0; margin-right: 10px; }
         button:hover { background: #2980b9; }
         .hint { font-size: 14px; color: #666; margin-top: 8px; }
-        #status { margin-top: 10px; padding: 10px; border-radius: 4px; display: none; font-weight: 500; }
-        #status.success { background: #d4edda; color: #155724; display: block; }
-        #status.error { background: #f8d7da; color: #721c24; display: block; }
-        #status.info { background: #e3f2fd; color: #0d47a1; display: block; }
+        #status, #run-status { margin-top: 10px; padding: 15px; border-radius: 6px; display: none; font-weight: 600; font-size: 15px; border-left: 4px solid #ccc; }
+        #status.success, #run-status.success { background: #d4edda; color: #155724; display: block; border-left-color: #28a745; }
+        #status.error, #run-status.error { background: #f8d7da; color: #721c24; display: block; border-left-color: #dc3545; }
+        #status.info, #run-status.info { background: #e3f2fd; color: #0d47a1; display: block; border-left-color: #2196F3; }
     </style>
 </head>
 <body>
@@ -160,84 +160,121 @@ class DigestHandler(BaseHTTPRequestHandler):
         function saveSettings() {
             const allScrapers = ['linkedin', 'indeed', 'glassdoor', 'stepstone', 'xing', 'monster', 'buildin', 'flexjobs', 'weworkremotely'];
             const enabledScrapers = allScrapers.filter(s => document.getElementById('scraper_' + s).checked);
+            const roles = document.getElementById('roles').value.split('\n').filter(r => r.trim());
+            const locations = document.getElementById('locations').value.split('\n').filter(l => l.trim());
+            const cvLength = document.getElementById('cv_text').value.length;
+            const threshold = parseFloat(document.getElementById('match_threshold').value) || 0.75;
+
             const config = {
-                roles: document.getElementById('roles').value.split('\n').filter(r => r.trim()),
-                locations: document.getElementById('locations').value.split('\n').filter(l => l.trim()),
+                roles: roles,
+                locations: locations,
                 cv_text: document.getElementById('cv_text').value,
-                match_threshold: parseFloat(document.getElementById('match_threshold').value) || 0.75,
+                match_threshold: threshold,
                 enabled_scrapers: enabledScrapers,
             };
+
             localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-            showStatus('✅ Settings saved to browser cache', 'success');
+            const details = roles.length + ' role(s), ' + locations.length + ' location(s), ' + enabledScrapers.length + ' board(s), threshold: ' + Math.round(threshold * 100) + '%';
+            showStatus('✅ SUCCESS! Settings saved to browser cache (' + details + ')', 'success');
+            console.log('[saveSettings] Settings saved:', config);
         }
 
-        function showStatus(msg, cls) {
-            const status = document.getElementById('status');
-            console.log('[Status]', msg);
+        function showStatus(msg, cls, elementId = 'status') {
+            const status = document.getElementById(elementId);
+            console.log('[Status]', cls.toUpperCase(), msg);
             status.textContent = msg;
             status.className = cls;
             status.style.display = 'block';
+            // Keep messages visible longer so user can see them
             if (cls === 'success') {
-                setTimeout(() => { status.style.display = 'none'; }, 5000);
+                setTimeout(() => { status.style.display = 'none'; }, 6000);
+            } else if (cls === 'info') {
+                // Info messages stay visible
             }
         }
 
         async function uploadCV(mode) {
             const formData = new FormData();
             let cvText = null;
+            let fileName = '';
 
             if (mode === 'file') {
                 const file = document.getElementById('cv_file').files[0];
                 if (!file) {
-                    showStatus('❌ Please select a PDF file', 'error');
+                    showStatus('❌ ERROR: No file selected. Please choose a PDF file.', 'error');
+                    console.warn('[uploadCV] No file selected');
                     return;
                 }
-                showStatus('⏳ Uploading PDF...', 'info');
+                fileName = file.name;
+                showStatus('⏳ UPLOADING: ' + fileName + '... Please wait...', 'info');
+                console.log('[uploadCV] Uploading file:', fileName, 'Size:', file.size, 'bytes');
                 formData.append('cv_file', file);
             } else {
                 cvText = document.getElementById('cv_text').value;
                 if (!cvText.trim()) {
-                    showStatus('❌ Please paste some CV text', 'error');
+                    showStatus('❌ ERROR: No text provided. Please paste your CV/resume text.', 'error');
+                    console.warn('[uploadCV] No text provided');
                     return;
                 }
-                showStatus('⏳ Saving CV text...', 'info');
+                showStatus('⏳ SAVING: CV text (' + cvText.length + ' characters)... Please wait...', 'info');
+                console.log('[uploadCV] Saving text CV, length:', cvText.length);
                 formData.append('cv_text', cvText);
             }
 
             try {
-                console.log('[uploadCV] Sending to /upload-cv');
+                console.log('[uploadCV] Sending POST to /upload-cv');
                 const r = await fetch('/upload-cv', { method: 'POST', body: formData });
-                console.log('[uploadCV] Response status:', r.status);
+                console.log('[uploadCV] Response received, status:', r.status);
+
+                if (!r.ok) {
+                    showStatus('❌ ERROR: Server returned status ' + r.status, 'error');
+                    return;
+                }
+
                 const data = await r.json();
                 console.log('[uploadCV] Response data:', data);
 
-                if (data.ok) {
+                if (data.ok && data.cv_text) {
                     const config = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
                     config.cv_text = data.cv_text;
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
                     document.getElementById('cv_text').value = data.cv_text;
-                    showStatus('✅ CV saved (' + data.cv_text.length + ' characters)', 'success');
+                    const chars = data.cv_text.length;
+                    showStatus('✅ SUCCESS! CV uploaded and saved (' + chars + ' characters). Click "Preview CV" to see it.', 'success');
+                    console.log('[uploadCV] CV saved successfully, length:', chars);
+                    // Clear file input after successful upload
+                    document.getElementById('cv_file').value = '';
                 } else {
-                    showStatus('❌ Error: ' + (data.error || 'Unknown error'), 'error');
+                    showStatus('❌ ERROR: ' + (data.error || 'Failed to process CV'), 'error');
+                    console.error('[uploadCV] Upload failed:', data.error);
                 }
             } catch (e) {
-                console.error('[uploadCV] Error:', e);
-                showStatus('❌ Error: ' + e.message, 'error');
+                console.error('[uploadCV] Exception:', e);
+                showStatus('❌ ERROR: ' + e.message + '. Check browser console (F12) for details.', 'error');
             }
         }
 
         async function startRun() {
             const config = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
             if (!config.roles || config.roles.length === 0) {
-                showStatus('❌ Please add at least one role keyword', 'error');
+                showStatus('❌ VALIDATION ERROR: Please add at least one role keyword in the "Role Keywords" section', 'error', 'run-status');
+                console.warn('[startRun] Validation failed: no roles');
                 return;
             }
             if (!config.locations || config.locations.length === 0) {
-                showStatus('❌ Please add at least one location', 'error');
+                showStatus('❌ VALIDATION ERROR: Please add at least one location in the "Locations" section', 'error', 'run-status');
+                console.warn('[startRun] Validation failed: no locations');
+                return;
+            }
+            const scrapers = config.enabled_scrapers || [];
+            if (scrapers.length === 0) {
+                showStatus('❌ VALIDATION ERROR: Please select at least one job board to search', 'error', 'run-status');
+                console.warn('[startRun] Validation failed: no scrapers');
                 return;
             }
             try {
-                showStatus('⏳ Starting search...', 'info');
+                showStatus('⏳ STARTING SEARCH: Searching ' + scrapers.length + ' board(s) for ' + config.roles.length + ' role(s)... Please wait (this may take a minute)', 'info', 'run-status');
+                console.log('[startRun] Starting search with config:', { roles: config.roles.length, locations: config.locations.length, scrapers: scrapers.length });
                 const r = await fetch('/run', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -245,16 +282,18 @@ class DigestHandler(BaseHTTPRequestHandler):
                 });
                 const data = await r.json();
                 if (data.ok) {
-                    showStatus('✅ Search started! Redirecting to Job Digest...', 'success');
+                    showStatus('✅ SUCCESS! Search started. Redirecting to Job Digest in a moment...', 'success', 'run-status');
+                    console.log('[startRun] Search started successfully, redirecting...');
                     setTimeout(() => {
                         window.location.href = '/digest';
-                    }, 1500);
+                    }, 2000);
                 } else {
-                    showStatus('❌ Error: ' + (data.error || 'Could not start search'), 'error');
+                    showStatus('❌ ERROR: ' + (data.error || 'Could not start search'), 'error', 'run-status');
+                    console.error('[startRun] Server error:', data.error);
                 }
             } catch (e) {
-                console.error('[startRun]', e);
-                showStatus('❌ Error: ' + e.message, 'error');
+                console.error('[startRun] Exception:', e);
+                showStatus('❌ ERROR: ' + e.message + '. Check browser console (F12) for details.', 'error', 'run-status');
             }
         }
 
@@ -263,16 +302,19 @@ class DigestHandler(BaseHTTPRequestHandler):
                 return;
             }
             try {
+                showStatus('⏳ Clearing old jobs...', 'info', 'run-status');
                 const r = await fetch('/clear-db', { method: 'POST' });
                 const data = await r.json();
-                const status = document.getElementById('run-status');
                 if (data.ok) {
-                    status.textContent = '✅ Old jobs cleared! Next search will start fresh.';
+                    showStatus('✅ SUCCESS! All old jobs cleared. Next search will start fresh.', 'success', 'run-status');
+                    console.log('[clearDatabase] Jobs cleared successfully');
                 } else {
-                    status.textContent = '❌ Error: ' + (data.error || 'Could not clear database');
+                    showStatus('❌ ERROR: ' + (data.error || 'Could not clear database'), 'error', 'run-status');
+                    console.error('[clearDatabase] Error:', data.error);
                 }
             } catch (e) {
-                document.getElementById('run-status').textContent = '❌ Error: ' + e.message;
+                showStatus('❌ ERROR: ' + e.message + '. Check browser console (F12) for details.', 'error', 'run-status');
+                console.error('[clearDatabase] Exception:', e);
             }
         }
 
@@ -288,10 +330,12 @@ class DigestHandler(BaseHTTPRequestHandler):
                     preview.textContent += '\n\n... (' + (cvText.length - 1500) + ' more characters)';
                 }
                 preview.style.display = 'block';
-                console.log('[showCurrentCV] Preview displayed');
+                showStatus('✅ CV Preview (' + cvText.length + ' characters total)', 'success');
+                console.log('[showCurrentCV] Preview displayed, total length:', cvText.length);
             } else {
                 preview.textContent = 'No CV loaded. Upload a PDF or paste text above and click "Upload Text" to save it.';
                 preview.style.display = 'block';
+                showStatus('ℹ️ No CV loaded yet', 'info');
                 console.log('[showCurrentCV] No CV in localStorage');
             }
         }
