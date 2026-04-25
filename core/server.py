@@ -60,9 +60,10 @@ class DigestHandler(BaseHTTPRequestHandler):
         button { background: #3498db; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; margin: 10px 0; margin-right: 10px; }
         button:hover { background: #2980b9; }
         .hint { font-size: 14px; color: #666; margin-top: 8px; }
-        #status { margin-top: 10px; padding: 10px; border-radius: 4px; display: none; }
+        #status { margin-top: 10px; padding: 10px; border-radius: 4px; display: none; font-weight: 500; }
         #status.success { background: #d4edda; color: #155724; display: block; }
         #status.error { background: #f8d7da; color: #721c24; display: block; }
+        #status.info { background: #e3f2fd; color: #0d47a1; display: block; }
     </style>
 </head>
 <body>
@@ -166,8 +167,13 @@ class DigestHandler(BaseHTTPRequestHandler):
 
         function showStatus(msg, cls) {
             const status = document.getElementById('status');
+            console.log('[Status]', msg);
             status.textContent = msg;
             status.className = cls;
+            status.style.display = 'block';
+            if (cls === 'success') {
+                setTimeout(() => { status.style.display = 'none'; }, 5000);
+            }
         }
 
         async function uploadCV(mode) {
@@ -177,22 +183,28 @@ class DigestHandler(BaseHTTPRequestHandler):
             if (mode === 'file') {
                 const file = document.getElementById('cv_file').files[0];
                 if (!file) {
-                    alert('Please select a PDF file');
+                    showStatus('❌ Please select a PDF file', 'error');
                     return;
                 }
+                showStatus('⏳ Uploading PDF...', 'info');
                 formData.append('cv_file', file);
             } else {
                 cvText = document.getElementById('cv_text').value;
                 if (!cvText.trim()) {
-                    alert('Please paste some CV text');
+                    showStatus('❌ Please paste some CV text', 'error');
                     return;
                 }
+                showStatus('⏳ Saving CV text...', 'info');
                 formData.append('cv_text', cvText);
             }
 
             try {
+                console.log('[uploadCV] Sending to /upload-cv');
                 const r = await fetch('/upload-cv', { method: 'POST', body: formData });
+                console.log('[uploadCV] Response status:', r.status);
                 const data = await r.json();
+                console.log('[uploadCV] Response data:', data);
+
                 if (data.ok) {
                     const config = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
                     config.cv_text = data.cv_text;
@@ -203,6 +215,7 @@ class DigestHandler(BaseHTTPRequestHandler):
                     showStatus('❌ Error: ' + (data.error || 'Unknown error'), 'error');
                 }
             } catch (e) {
+                console.error('[uploadCV] Error:', e);
                 showStatus('❌ Error: ' + e.message, 'error');
             }
         }
@@ -257,15 +270,19 @@ class DigestHandler(BaseHTTPRequestHandler):
             const config = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
             const preview = document.getElementById('cv-preview');
             const cvText = config.cv_text || '';
-            if (cvText) {
-                preview.textContent = cvText.substring(0, 1000);
-                if (cvText.length > 1000) {
-                    preview.textContent += '\n\n... (' + (cvText.length - 1000) + ' more characters)';
+            console.log('[showCurrentCV] CV length:', cvText.length);
+
+            if (cvText && cvText.length > 0) {
+                preview.textContent = cvText.substring(0, 1500);
+                if (cvText.length > 1500) {
+                    preview.textContent += '\n\n... (' + (cvText.length - 1500) + ' more characters)';
                 }
                 preview.style.display = 'block';
+                console.log('[showCurrentCV] Preview displayed');
             } else {
-                preview.textContent = 'No CV loaded';
+                preview.textContent = 'No CV loaded. Upload a PDF or paste text above and click "Upload Text" to save it.';
                 preview.style.display = 'block';
+                console.log('[showCurrentCV] No CV in localStorage');
             }
         }
 
@@ -278,14 +295,23 @@ class DigestHandler(BaseHTTPRequestHandler):
                 config.cv_text = '';
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
                 document.getElementById('cv_text').value = '';
+                document.getElementById('cv-preview').textContent = 'No CV loaded. Upload a PDF or paste text above and click "Upload Text" to save it.';
                 showStatus('✅ CV cleared. Upload a new one.', 'success');
-                document.getElementById('cv-preview').style.display = 'none';
+                console.log('[clearCV] CV cleared from localStorage');
             } catch (e) {
+                console.error('[clearCV] Error:', e);
                 showStatus('❌ Error: ' + e.message, 'error');
             }
         }
 
-        window.addEventListener('load', loadSettings);
+        window.addEventListener('load', () => {
+            console.log('[Page Load] Initializing settings page');
+            loadSettings();
+            // Show initial message in preview area
+            const preview = document.getElementById('cv-preview');
+            preview.textContent = 'No CV loaded. Upload a PDF or paste text above and click "Upload Text" to save it.';
+            console.log('[Page Load] Settings page initialized');
+        });
     </script>
 </body>
 </html>"""
