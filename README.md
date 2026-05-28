@@ -31,7 +31,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 playwright install chromium
 
-ollama pull llama3.2
+ollama pull gemma4:e4b
 python main.py
 ```
 
@@ -43,7 +43,7 @@ click `Start Search`.
 - macOS
 - Python 3.10 or newer
 - Ollama installed from `https://ollama.com/download`
-- An Ollama model installed locally, for example `llama3.2`
+- The Ollama model `gemma4:e4b` installed locally
 
 ## How To Use The App
 
@@ -89,13 +89,13 @@ The app uses the model name from the `OLLAMA_MODEL` environment variable. If
 that variable is not set, it uses:
 
 ```text
-llama3.2
+gemma4:e4b
 ```
 
 Install the default model:
 
 ```bash
-ollama pull llama3.2
+ollama pull gemma4:e4b
 ```
 
 Check your installed models:
@@ -107,13 +107,13 @@ ollama list
 Use a different installed model for one run:
 
 ```bash
-OLLAMA_MODEL=mistral python main.py
+OLLAMA_MODEL=<model-name> python main.py
 ```
 
 Or set it in your shell before starting the app:
 
 ```bash
-export OLLAMA_MODEL=llama3.2
+export OLLAMA_MODEL=gemma4:e4b
 python main.py
 ```
 
@@ -264,7 +264,7 @@ Then start Job Agent again.
 Install the configured model:
 
 ```bash
-ollama pull llama3.2
+ollama pull gemma4:e4b
 ```
 
 Or choose one of your installed models:

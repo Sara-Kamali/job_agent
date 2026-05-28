@@ -47,7 +47,7 @@
   <key>EnvironmentVariables</key>
   <dict>
     <key>OLLAMA_MODEL</key>
-    <string>llama3.2</string>
+    <string>gemma4:e4b</string>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/Users/YOUR_USERNAME/job_agent/venv/bin</string>
   </dict>

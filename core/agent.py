@@ -13,7 +13,7 @@ import ollama
 
 from core.resume_data import USER_RESUME_EN, USER_RESUME_DE
 
-MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
+MODEL = os.getenv("OLLAMA_MODEL", "gemma4:e4b")
 
 
 def _call(prompt: str, max_tokens: int = 2500) -> str:
