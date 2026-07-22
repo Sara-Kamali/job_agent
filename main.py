@@ -33,12 +33,18 @@ async def run_scrapers(on_job=None, roles=None, locations=None, enabled_scrapers
     from scrapers.linkedin import scrape_linkedin
     from scrapers.stepstone import scrape_stepstone
     from scrapers.xing import scrape_xing
+    from scrapers.reed import scrape_reed
+    from scrapers.jobbank import scrape_jobbank
+    from scrapers.himalayas import scrape_himalayas
 
     log("Starting scrapers...")
     scrapers_map = {
         "linkedin": (scrape_linkedin, "LinkedIn"),
         "stepstone": (scrape_stepstone, "Stepstone"),
         "xing": (scrape_xing, "Xing"),
+        "reed": (scrape_reed, "Reed"),
+        "jobbank": (scrape_jobbank, "Job Bank"),
+        "himalayas": (scrape_himalayas, "Himalayas"),
     }
 
     active = enabled_scrapers if enabled_scrapers else ["linkedin", "stepstone", "xing"]
