@@ -1,26 +1,93 @@
-# Job Agent
+# Job Agent — PhD-Focused Fork
 
-Job Agent is a local job-search assistant for macOS. It searches LinkedIn,
-Stepstone, and Xing, filters listings against your target roles and locations,
-scores each job against your CV with Ollama running on your machine, and shows
-the results in a browser digest.
+Job Agent is a local job-search assistant for macOS. It searches multiple job
+boards, filters listings based on your preferred roles, locations, and job
+requirements, scores matching jobs against your CV using a locally running
+Ollama model, and displays the results in a browser digest.
 
-No hosted model account is needed. Install Ollama, pull a local model, start the
-app, enter your search settings, upload or paste your CV, and click Start Search.
+This repository is a fork of the original **Job Agent** project by
+**[maralsage](https://github.com/maralthesage)**, customized for a PhD-oriented job search.
+
+## What Is New in This Fork
+
+This fork extends the original project in three main ways:
+
+- Added support for **Reed**.
+- Added support for **Hymalia**.
+- Added support for the **Government of Canada job portal**.
+- Updated the filtering logic so that only jobs that list a **PhD as a
+  requirement or as a preferred/advantageous qualification** are retained.
+- Adjusted additional filter settings to better match a personalized job
+  search, excluding specific job descriptions.
+
+The original LinkedIn, Stepstone, and Xing sources remain part of the project,
+alongside the newly added sources.
+
+## How It Works
+
+1. The selected job boards are searched for new listings.
+2. Listings are checked against the configured roles, locations, keywords, and
+   other filtering preferences.
+3. The PhD filter removes jobs that do not mention a PhD as either required or
+   desirable.
+4. Ollama evaluates the remaining listings against your CV locally.
+5. Jobs that meet the configured match threshold are shown in the browser
+   digest.
+
+Your CV and job data remain on your machine. No hosted language-model account
+is required.
+
+## Supported Job Boards
+
+- LinkedIn
+- Stepstone
+- Xing
+- Reed
+- Hymalia
+- Government of Canada job portal
+
+Job-board availability and results can vary because external websites may
+change their page structure or restrict automated access.
+
+## Requirements
+
+- macOS
+- Python 3.10 or newer
+- [Ollama](https://ollama.com/download)
+- The Ollama model `gemma4:e4b`, or another compatible locally installed model
+- Chromium for Playwright
+
+
+## Reed API Key
+
+Searching Reed requires a Reed account and an API key. Register with Reed,
+request or obtain an API key, and then save it as the `REED_API_KEY`
+environment variable before starting Job Agent.
+
+Replace `your-key-here` with your actual Reed API key and run:
+
+```bash
+echo 'export REED_API_KEY=your-key-here' >> ~/.zshrc
+source ~/.zshrc
+```
+
+This makes the key available in the current terminal and future zsh sessions.
+Do not add the real key to this repository or commit it to Git.
+
+
 
 ## Quick Start
 
-Install Ollama first from `https://ollama.com/download`. If Ollama is not
-already running, start it in a separate terminal:
+Install Ollama and start it in a separate terminal:
 
 ```bash
 ollama serve
 ```
 
-Keep that terminal open while Job Agent is scoring jobs. If `ollama serve` says
-the address is already in use, Ollama is already running.
+If Ollama reports that the address is already in use, it is probably already
+running.
 
-Then set up and run the project:
+Clone and set up this fork:
 
 ```bash
 git clone <this-repository-url>
@@ -35,58 +102,49 @@ ollama pull gemma4:e4b
 python main.py
 ```
 
-When the browser opens, go to `Settings`, add your search details and CV, then
-click `Start Search`.
+When the browser opens, go to **Settings**, enter your search preferences, add
+your CV, and select **Start Search**.
 
-## Requirements
+## Configure Your Search
 
-- macOS
-- Python 3.10 or newer
-- Ollama installed from `https://ollama.com/download`
-- The Ollama model `gemma4:e4b` installed locally
+Open the settings page at:
 
-## How To Use The App
+```text
+http://localhost:8765/settings
+```
 
-1. Start the local browser app:
+Configure the available options:
 
-   ```bash
-   source venv/bin/activate
-   python main.py
-   ```
+- **Role Keywords:** one target job title per line, such as `Data Scientist` or
+  `Research Scientist`.
+- **Job Description Keywords:** optional skills, research areas, or phrases,
+  such as `Python`, `machine learning`, or `bioinformatics`.
+- **Locations:** one location per line, such as `London`, `Canada`, or `Remote`.
+- **Match Threshold:** the minimum CV match score required for a job to appear
+  in the digest, such as `0.75`.
+- **Job Boards:** choose any supported job sources.
+- **CV / Resume:** upload a PDF CV or paste the CV text.
 
-2. Open this page if the browser does not open automatically:
+The customized filters in this fork prioritize listings that explicitly state
+that a PhD is required, preferred, desirable, or considered an advantage.
+Review the filter configuration before running a search to ensure the role,
+location, and keyword settings reflect your own needs.
 
-   ```text
-   http://localhost:8765/settings
-   ```
+After saving the settings, select **Start Search** and view results at:
 
-3. Fill in the settings:
+```text
+http://localhost:8765/digest
+```
 
-   - `Role Keywords`: one job title per line, such as `Data Analyst`
-   - `Job Description Keywords`: optional skills or phrases, such as `Python`
-   - `Locations`: one location per line, such as `Berlin`, `Germany`, or `Remote`
-   - `Match Threshold`: minimum score to show in the digest, such as `0.75`
-   - `Job Boards`: choose LinkedIn, Stepstone, Xing, or any combination
-   - `CV / Resume`: upload a PDF CV or paste your CV text
-
-4. Click `Save Settings`.
-
-5. Click `Start Search`.
-
-6. View results at:
-
-   ```text
-   http://localhost:8765/digest
-   ```
-
-The digest updates while scraping and scoring is running. Jobs are saved in the
-local SQLite database at `data/jobs.db` so the same job is not processed again
-unless you clear old jobs from the settings page.
+The digest updates while scraping and scoring are in progress. Processed jobs
+are stored in the local SQLite database at `data/jobs.db`, preventing the same
+listing from being processed repeatedly unless old jobs are cleared from the
+settings page.
 
 ## Ollama Model
 
-The app uses the model name from the `OLLAMA_MODEL` environment variable. If
-that variable is not set, it uses:
+The app reads the model name from the `OLLAMA_MODEL` environment variable. If
+the variable is not set, it uses:
 
 ```text
 gemma4:e4b
@@ -98,7 +156,7 @@ Install the default model:
 ollama pull gemma4:e4b
 ```
 
-Check your installed models:
+List the models installed on your machine:
 
 ```bash
 ollama list
@@ -110,98 +168,69 @@ Use a different installed model for one run:
 OLLAMA_MODEL=<model-name> python main.py
 ```
 
-Or set it in your shell before starting the app:
-
-```bash
-export OLLAMA_MODEL=gemma4:e4b
-python main.py
-```
-
-The model name must exactly match a name shown by `ollama list`.
+The model name must exactly match one shown by `ollama list`.
 
 ## Test Mode
 
-Use test mode to verify that Python, Ollama, and the local digest server work
-without scraping job boards:
+Test the Python environment, Ollama connection, and local digest server without
+scraping external job boards:
 
 ```bash
 source venv/bin/activate
 python main.py --run --test
 ```
 
-Test mode still uses Ollama to score mock jobs, so Ollama must be running and
-the configured model must be installed.
+Test mode uses mock jobs, but Ollama must still be running and the configured
+model must be installed.
 
 ## Optional File-Based Run
 
-The browser UI is the easiest way to use the app. For a terminal-only run, copy
-the example config and edit it:
+The browser interface is the simplest way to configure the app. For a
+terminal-only run, create a local configuration file from the example:
 
 ```bash
 cp data/user_config.example.json data/user_config.json
 ```
 
-Open `data/user_config.json`, replace the sample roles, locations, keywords,
-and `cv_text`, then run:
+Edit `data/user_config.json` with your roles, locations, keywords, and
+`cv_text`, then run:
 
 ```bash
 python main.py --run
 ```
 
-The browser settings page stores settings in your browser. The `--run` command
-uses `data/user_config.json` instead.
+The `--run` command reads `data/user_config.json`; settings saved in the browser
+are stored separately.
 
 ## Optional macOS Login Startup
 
-`com.jobagent.plist` is a launchd template that can start the browser app when
-you log in.
+The `com.jobagent.plist` file is a launchd template that can start the browser
+app when you log in.
 
-1. Edit every `/Users/YOUR_USERNAME/job_agent` path in `com.jobagent.plist`.
-2. Copy it into LaunchAgents:
-
-   ```bash
-   cp com.jobagent.plist ~/Library/LaunchAgents/
-   ```
-
-3. Load it:
-
-   ```bash
-   launchctl load ~/Library/LaunchAgents/com.jobagent.plist
-   ```
-
-4. Stop it later:
-
-   ```bash
-   launchctl unload ~/Library/LaunchAgents/com.jobagent.plist
-   ```
-
-Manual startup with `python main.py` is recommended until you know the app works
-on your machine.
-
-## Useful Commands
+1. Replace every `/Users/YOUR_USERNAME/job_agent` path in
+   `com.jobagent.plist` with the correct local path.
+2. Copy the file to `~/Library/LaunchAgents/`.
+3. Load it with `launchctl`.
 
 ```bash
-# Start the browser UI
-python main.py
-
-# Run mock jobs through the scoring pipeline
-python main.py --run --test
-
-# Run from data/user_config.json
-python main.py --run
-
-# Show installed Ollama models
-ollama list
-
-# Inspect stored jobs
-sqlite3 data/jobs.db "SELECT title, company, match_score, first_seen FROM seen_jobs ORDER BY match_score DESC;"
+cp com.jobagent.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.jobagent.plist
 ```
+
+To stop it later:
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.jobagent.plist
+```
+
+Manual startup with `python main.py` is recommended until the app has been
+tested successfully.
 
 ## Project Structure
 
 ```text
 job_agent/
-|-- main.py                     # Entry point
+|-- main.py                     # Application entry point
 |-- requirements.txt            # Python dependencies
 |-- com.jobagent.plist          # Optional macOS launchd template
 |-- data/
@@ -211,38 +240,44 @@ job_agent/
 |   |-- cv_parser.py            # PDF CV text extraction
 |   |-- db.py                   # SQLite job cache
 |   |-- emailer.py              # Browser digest HTML builder
-|   |-- filters.py              # Title and description filters
+|   |-- filters.py              # PhD and personalized job filters
 |   |-- resume_data.py          # Empty fallback resume placeholders
 |   |-- server.py               # Local settings and digest server
-|   `-- user_config.py          # File-based config loader
+|   `-- user_config.py          # File-based configuration loader
 |-- scrapers/
 |   |-- linkedin.py
 |   |-- stepstone.py
-|   `-- xing.py
+|   |-- xing.py
+|   |-- reed.py
+|   |-- hymalia.py
+|   `-- canada_government.py
 `-- output/
     `-- digests/
 ```
 
-## Local Files Not Committed
+The exact filenames of the added scrapers may differ depending on the current
+implementation.
 
-The `.gitignore` is set up so generated and private files stay out of a public
-repository:
+## Private and Generated Files
+
+The following local files should remain outside the public repository:
 
 - `venv/` and `.venv/`
-- Python cache folders
-- local assistant/editor folders
+- Python cache directories
+- Local assistant or editor folders
 - `data/jobs.db`
 - `data/user_config.json`
-- generated files under `output/`
+- Generated files under `output/`
 - CV and resume files
 
-The tracked example config is `data/user_config.example.json`.
+Use `data/user_config.example.json` as the tracked configuration example. Never
+commit a CV or a configuration file containing personal information.
 
 ## Troubleshooting
 
 ### `ModuleNotFoundError: No module named 'ollama'`
 
-Activate the virtual environment and install dependencies:
+Activate the virtual environment and reinstall the dependencies:
 
 ```bash
 source venv/bin/activate
@@ -251,55 +286,26 @@ pip install -r requirements.txt
 
 ### Ollama Is Not Responding
 
-Start Ollama:
+Start Ollama, then restart Job Agent:
 
 ```bash
 ollama serve
 ```
 
-Then start Job Agent again.
-
-### `model not found`
-
-Install the configured model:
-
-```bash
-ollama pull gemma4:e4b
-```
-
-Or choose one of your installed models:
-
-```bash
-ollama list
-OLLAMA_MODEL=<model-name> python main.py
-```
-
-### Playwright Browser Errors
-
-Install Chromium for Playwright:
-
-```bash
-playwright install chromium
-```
-
 ### No Jobs Appear
 
-- Add at least one role keyword and one location
-- Upload or paste your CV before starting a search
-- Try broader titles or locations
-- Lower the match threshold
-- Enable more job boards
-- Use `Clear Old Jobs` in settings if you want old listings processed again
+Because this fork applies a PhD-specific filter, a search can legitimately
+return fewer results than the original project. Check that:
 
-### A Job Board Stops Returning Results
+- The selected sources currently contain listings for your chosen roles and
+  locations.
+- The listings explicitly mention a PhD as required or preferred.
+- Your role, location, keyword, and match-threshold settings are not overly
+  restrictive when combined.
+- The external job board has not changed its page structure.
 
-Job boards change their page markup from time to time. Check the terminal output
-or `/tmp/job_agent_error.log`, then update the affected scraper in `scrapers/`.
+## Acknowledgements
 
-## Privacy
-
-- Your CV text is stored in browser local storage when you use the settings page
-- Terminal-only config is stored locally in `data/user_config.json`
-- Seen jobs are stored locally in `data/jobs.db`
-- Job scoring is performed by Ollama running on your machine
-- The app contacts job boards only to load listings and job descriptions
+This project is based on the original **Job Agent** repository by
+**maralsage**. This fork adds new job sources and custom PhD-focused filtering
+for a more specialized search workflow.
