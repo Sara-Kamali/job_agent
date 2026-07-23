@@ -15,7 +15,7 @@ from datetime import datetime
 
 from core.db import init_db, is_seen, mark_seen, update_job_score, log_digest
 from core.server import serve_digest, start_server_thread, set_done
-from core.filters import description_matches, title_matches, MATCH_THRESHOLD
+from core.filters import description_matches, title_matches, phd_matches, should_exclude, salary_ok, MATCH_THRESHOLD
 from core.user_config import load_config
 
 
@@ -136,6 +136,12 @@ async def run_pipeline(config: dict, test_mode: bool = False, start_server: bool
     cv_text = config.get("cv_text", "")
     match_threshold = config.get("match_threshold", MATCH_THRESHOLD)
     enabled_scrapers = config.get("enabled_scrapers", ["linkedin", "stepstone", "xing"])
+    require_phd = config.get("require_phd", False)
+    phd_keywords = config.get("phd_keywords", None)
+    exclude_focus = config.get("exclude_focus", True)
+    exclude_keywords = config.get("exclude_keywords", None)
+    hard_exclude_keywords = config.get("hard_exclude_keywords", None)
+    min_salary = config.get("min_salary", 0)
     title_keywords = [kw.lower() for kw in roles]
 
     # DEBUG: Log what we loaded
@@ -188,6 +194,43 @@ async def run_pipeline(config: dict, test_mode: bool = False, start_server: bool
         skipped_descriptions = len(title_matched) - len(to_score)
         if skipped_descriptions:
             log(f"Skipping {skipped_descriptions} jobs without required description keywords")
+
+        # Step 3b: Optionally keep only jobs that mention a PhD / doctorate
+        if require_phd:
+            before_phd = len(to_score)
+            to_score = [
+                j for j in to_score
+                if phd_matches(j.get("description", ""), enabled=True, keywords=phd_keywords)
+            ]
+            skipped_phd = before_phd - len(to_score)
+            if skipped_phd:
+                log(f"Skipping {skipped_phd} jobs that don't mention a PhD/doctorate")
+
+        # Step 3c: Drop excluded topics (military/defense = any mention;
+        # LLM/vision = only when it's the job's main focus)
+        if exclude_focus:
+            before_excl = len(to_score)
+            to_score = [
+                j for j in to_score
+                if not should_exclude(
+                    j.get("title", ""), j.get("description", ""),
+                    keywords=exclude_keywords, hard_keywords=hard_exclude_keywords,
+                )
+            ]
+            skipped_excl = before_excl - len(to_score)
+            if skipped_excl:
+                log(f"Skipping {skipped_excl} jobs on excluded topics (LLM/vision focus, military/defense)")
+
+        # Step 3d: Salary floor. Jobs with NO stated salary always pass.
+        if min_salary:
+            before_sal = len(to_score)
+            to_score = [
+                j for j in to_score
+                if salary_ok(f"{j.get('title','')} {j.get('description','')}", minimum=min_salary)
+            ]
+            skipped_sal = before_sal - len(to_score)
+            if skipped_sal:
+                log(f"Skipping {skipped_sal} jobs with a stated salary below {min_salary}")
 
         from core.agent import score_job
 
