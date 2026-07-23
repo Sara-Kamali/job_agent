@@ -36,10 +36,9 @@ class DigestHandler(BaseHTTPRequestHandler):
             ]
             body = build_html(jobs).encode("utf-8")
             self._respond(200, "text/html; charset=utf-8", body)
-            # Whatever just rendered under "New" (viewed=0) should show as
-            # "Seen" on the *next* load, so flip them now, after rendering.
-            newly_viewed_ids = [j["id"] for j in jobs if not j.get("viewed", 0)]
-            mark_viewed(newly_viewed_ids)
+            # NOTE: jobs are NOT auto-marked as viewed here. A job only moves
+            # from "New" to "Seen" when the person actually clicks into it
+            # (see the /view endpoint, triggered by the "View Job" link).
         elif self.path == "/status":
             rows = get_recent_jobs(days=self.days)
             body = json.dumps({
@@ -415,6 +414,11 @@ console.log('Script loaded');
             length = int(self.headers.get("Content-Length", 0))
             data = json.loads(self.rfile.read(length))
             mark_applied(data.get("id", ""), data.get("applied", True))
+            self._respond(200, "application/json", b'{"ok":true}')
+        elif self.path == "/view":
+            length = int(self.headers.get("Content-Length", 0))
+            data = json.loads(self.rfile.read(length))
+            mark_viewed([data.get("id", "")])
             self._respond(200, "application/json", b'{"ok":true}')
         elif self.path == "/upload-cv":
             content_type = self.headers.get("Content-Type", "")
