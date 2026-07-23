@@ -27,124 +27,150 @@ def score_color(score: float) -> str:
 from core.filters import MATCH_THRESHOLD
 
 
-def build_html(jobs: List[Dict]) -> str:
+def _render_job_card(job: Dict) -> str:
     import json as _json
+    score = job.get("match_score", 0.0)
+    pct = int(score * 100)
+    color = score_color(score)
+    bar = score_bar(score)
+    applied = bool(job.get("applied", 0))
+    job_id_js = _json.dumps(job.get("id", ""))
+
+    card_opacity = "0.5" if applied else "1"
+    applied_badge = (
+        '<span class="applied-badge" style="background:#dcfce7;color:#166534;font-size:11px;'
+        'padding:2px 8px;border-radius:10px;">✓ Applied</span>'
+    )
+    if not applied:
+        applied_badge = (
+            '<span class="applied-badge" style="display:none;background:#dcfce7;color:#166534;'
+            'font-size:11px;padding:2px 8px;border-radius:10px;">✓ Applied</span>'
+        )
+
+    desc = job.get("description", "")
+    snippet = (desc[:220] + "…") if len(desc) > 220 else desc
+    snippet_html = (
+        f'<p style="margin:8px 0 4px;font-size:13px;color:#374151;'
+        f'line-height:1.5;background:#f9fafb;padding:8px 10px;border-radius:6px;">'
+        f'{snippet}</p>'
+    ) if snippet else ""
+
+    missing = job.get("missing_skills", [])
+    missing_html = ""
+    if missing:
+        tags = "".join(
+            f'<span style="display:inline-block;background:#fef3c7;color:#92400e;'
+            f'font-size:11px;padding:2px 8px;border-radius:10px;margin:2px;">{s}</span>'
+            for s in missing[:5]
+        )
+        missing_html = f'<p style="margin:6px 0 0;font-size:12px;color:#6b7280;">Gaps: {tags}</p>'
+
+    matching = job.get("matching_skills", [])
+    matching_html = ""
+    if matching:
+        tags = "".join(
+            f'<span style="display:inline-block;background:#d1fae5;color:#065f46;'
+            f'font-size:11px;padding:2px 8px;border-radius:10px;margin:2px;">{s}</span>'
+            for s in matching[:6]
+        )
+        matching_html = f'<p style="margin:6px 0 0;font-size:12px;color:#6b7280;">Matches: {tags}</p>'
+
+    reason = job.get("reason", "")
+    source_badge = (
+        f'<span style="background:#e0e7ff;color:#3730a3;font-size:11px;'
+        f'padding:2px 8px;border-radius:10px;">{job.get("source","").upper()}</span>'
+    )
+    threshold_badge = (
+        f'<span style="background:#dcfce7;color:#166534;font-size:11px;'
+        f'padding:2px 8px;border-radius:10px;">Good match</span>'
+        if score >= MATCH_THRESHOLD else
+        f'<span style="background:#f3f4f6;color:#6b7280;font-size:11px;'
+        f'padding:2px 8px;border-radius:10px;">Below threshold</span>'
+    )
+    checked_attr = "checked" if applied else ""
+
+    return f"""
+    <div class="job-card" style="border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin:0 0 14px;
+                background:#ffffff;border-left:4px solid {color};opacity:{card_opacity};
+                transition:opacity 0.2s;">
+      <div style="display:flex;align-items:flex-start;gap:12px;">
+        <label style="display:flex;align-items:center;margin-top:3px;cursor:pointer;flex-shrink:0;"
+               title="Mark as applied">
+          <input type="checkbox" {checked_attr}
+                 data-job-id={job_id_js}
+                 onchange="toggleApplied(this)"
+                 style="width:18px;height:18px;cursor:pointer;accent-color:#16a34a;">
+        </label>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div style="min-width:0;">
+              <h3 style="margin:0 0 4px;font-size:16px;color:#111827;">{job.get('title','')}</h3>
+              <p style="margin:0;color:#4b5563;font-size:13px;">
+                {job.get('company','')} &nbsp;·&nbsp; {job.get('location','')}
+              </p>
+            </div>
+            <div style="text-align:right;flex-shrink:0;margin-left:12px;">
+              <span style="font-size:22px;font-weight:700;color:{color};">{pct}%</span>
+              <p style="margin:2px 0 0;font-family:monospace;font-size:10px;color:{color};">{bar}</p>
+            </div>
+          </div>
+          <p style="margin:10px 0 4px;font-size:13px;color:#6b7280;font-style:italic;">{reason}</p>
+          {snippet_html}
+          {matching_html}
+          {missing_html}
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            {source_badge}
+            {threshold_badge}
+            {applied_badge}
+            <a href="{job.get('url','#')}" target="_blank" rel="noopener noreferrer"
+               style="background:#2563eb;color:#fff;padding:6px 16px;border-radius:8px;
+                      text-decoration:none;font-size:13px;font-weight:500;">
+              View Job →
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+
+
+def build_html(jobs: List[Dict]) -> str:
+    """
+    Renders the digest as two columns: New (jobs not yet viewed in a previous
+    digest load) and Seen (jobs already shown to you before). Each job dict is
+    expected to carry a "viewed" flag (0/1) from the database; jobs without one
+    are treated as New.
+    """
     now = datetime.now().strftime("%A, %d %B %Y – %H:%M")
     count = len(jobs)
     matched_count = sum(1 for j in jobs if j.get("match_score", 0) >= MATCH_THRESHOLD)
 
-    job_cards = ""
-    for job in jobs:
-        score = job.get("match_score", 0.0)
-        pct = int(score * 100)
-        color = score_color(score)
-        bar = score_bar(score)
-        applied = bool(job.get("applied", 0))
-        job_id_js = _json.dumps(job.get("id", ""))
+    new_jobs = [j for j in jobs if not j.get("viewed", 0)]
+    seen_jobs = [j for j in jobs if j.get("viewed", 0)]
 
-        card_opacity = "0.5" if applied else "1"
-        applied_badge = (
-            '<span class="applied-badge" style="background:#dcfce7;color:#166534;font-size:11px;'
-            'padding:2px 8px;border-radius:10px;">✓ Applied</span>'
-        )
-        if not applied:
-            applied_badge = (
-                '<span class="applied-badge" style="display:none;background:#dcfce7;color:#166534;'
-                'font-size:11px;padding:2px 8px;border-radius:10px;">✓ Applied</span>'
-            )
+    new_cards = "".join(_render_job_card(j) for j in new_jobs)
+    seen_cards = "".join(_render_job_card(j) for j in seen_jobs)
 
-        # Description snippet
-        desc = job.get("description", "")
-        snippet = (desc[:220] + "…") if len(desc) > 220 else desc
-        snippet_html = (
-            f'<p style="margin:8px 0 4px;font-size:13px;color:#374151;'
-            f'line-height:1.5;background:#f9fafb;padding:8px 10px;border-radius:6px;">'
-            f'{snippet}</p>'
-        ) if snippet else ""
-
-        missing = job.get("missing_skills", [])
-        missing_html = ""
-        if missing:
-            tags = "".join(
-                f'<span style="display:inline-block;background:#fef3c7;color:#92400e;'
-                f'font-size:11px;padding:2px 8px;border-radius:10px;margin:2px;">{s}</span>'
-                for s in missing[:5]
-            )
-            missing_html = f'<p style="margin:6px 0 0;font-size:12px;color:#6b7280;">Gaps: {tags}</p>'
-
-        matching = job.get("matching_skills", [])
-        matching_html = ""
-        if matching:
-            tags = "".join(
-                f'<span style="display:inline-block;background:#d1fae5;color:#065f46;'
-                f'font-size:11px;padding:2px 8px;border-radius:10px;margin:2px;">{s}</span>'
-                for s in matching[:6]
-            )
-            matching_html = f'<p style="margin:6px 0 0;font-size:12px;color:#6b7280;">Matches: {tags}</p>'
-
-        reason = job.get("reason", "")
-        source_badge = (
-            f'<span style="background:#e0e7ff;color:#3730a3;font-size:11px;'
-            f'padding:2px 8px;border-radius:10px;">{job.get("source","").upper()}</span>'
-        )
-        threshold_badge = (
-            f'<span style="background:#dcfce7;color:#166534;font-size:11px;'
-            f'padding:2px 8px;border-radius:10px;">Good match</span>'
-            if score >= MATCH_THRESHOLD else
-            f'<span style="background:#f3f4f6;color:#6b7280;font-size:11px;'
-            f'padding:2px 8px;border-radius:10px;">Below threshold</span>'
-        )
-        checked_attr = "checked" if applied else ""
-
-        job_cards += f"""
-        <div class="job-card" style="border:1px solid #e5e7eb;border-radius:12px;padding:20px;margin:16px 0;
-                    background:#ffffff;border-left:4px solid {color};opacity:{card_opacity};
-                    transition:opacity 0.2s;">
-          <div style="display:flex;align-items:flex-start;gap:12px;">
-            <label style="display:flex;align-items:center;margin-top:3px;cursor:pointer;flex-shrink:0;"
-                   title="Mark as applied">
-              <input type="checkbox" {checked_attr}
-                     data-job-id={job_id_js}
-                     onchange="toggleApplied(this)"
-                     style="width:18px;height:18px;cursor:pointer;accent-color:#16a34a;">
-            </label>
-            <div style="flex:1;min-width:0;">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-                <div>
-                  <h3 style="margin:0 0 4px;font-size:17px;color:#111827;">{job.get('title','')}</h3>
-                  <p style="margin:0;color:#4b5563;font-size:14px;">
-                    {job.get('company','')} &nbsp;·&nbsp; {job.get('location','')}
-                  </p>
-                </div>
-                <div style="text-align:right;flex-shrink:0;margin-left:16px;">
-                  <span style="font-size:24px;font-weight:700;color:{color};">{pct}%</span>
-                  <p style="margin:2px 0 0;font-family:monospace;font-size:11px;color:{color};">{bar}</p>
-                </div>
-              </div>
-              <p style="margin:10px 0 4px;font-size:13px;color:#6b7280;font-style:italic;">{reason}</p>
-              {snippet_html}
-              {matching_html}
-              {missing_html}
-              <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                {source_badge}
-                {threshold_badge}
-                {applied_badge}
-                <a href="{job.get('url','#')}" target="_blank" rel="noopener noreferrer"
-                   style="background:#2563eb;color:#fff;padding:6px 16px;border-radius:8px;
-                          text-decoration:none;font-size:13px;font-weight:500;">
-                  View Job →
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-        """
+    new_empty = '<p style="text-align:center;color:#6b7280;padding:30px 10px;font-size:13px;">No new jobs since your last visit.</p>'
+    seen_empty = '<p style="text-align:center;color:#6b7280;padding:30px 10px;font-size:13px;">Nothing seen yet.</p>'
 
     html = f"""
     <!DOCTYPE html>
     <html>
     <head>
       <meta charset="UTF-8">
+      <style>
+        .digest-columns {{
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+          align-items: start;
+        }}
+        @media (max-width: 820px) {{
+          .digest-columns {{ grid-template-columns: 1fr; }}
+        }}
+        .column-scroll {{ max-height: 80vh; overflow-y: auto; padding-right: 4px; }}
+      </style>
       <script>
         // Live update: poll /status and reload when new jobs arrive
         let _knownCount = null;
@@ -196,7 +222,7 @@ def build_html(jobs: List[Dict]) -> str:
     </head>
     <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
                  background:#f9fafb;margin:0;padding:20px;">
-      <div style="max-width:720px;margin:0 auto;">
+      <div style="max-width:1180px;margin:0 auto;">
 
         <!-- Live scraping banner -->
         <div id="live-bar" style="display:none;background:#fef9c3;color:#854d0e;
@@ -223,9 +249,29 @@ def build_html(jobs: List[Dict]) -> str:
           </p>
         </div>
 
-        <!-- Jobs -->
-        {job_cards if job_cards else
-         '<p style="text-align:center;color:#6b7280;padding:40px;">No jobs found.</p>'}
+        <!-- Two columns: New / Seen -->
+        <div class="digest-columns">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <h2 style="margin:0;font-size:15px;color:#111827;">🆕 New</h2>
+              <span style="background:#dbeafe;color:#1e40af;font-size:12px;font-weight:600;
+                           padding:2px 9px;border-radius:10px;">{len(new_jobs)}</span>
+            </div>
+            <div class="column-scroll">
+              {new_cards if new_cards else new_empty}
+            </div>
+          </div>
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <h2 style="margin:0;font-size:15px;color:#6b7280;">👀 Seen</h2>
+              <span style="background:#f3f4f6;color:#6b7280;font-size:12px;font-weight:600;
+                           padding:2px 9px;border-radius:10px;">{len(seen_jobs)}</span>
+            </div>
+            <div class="column-scroll">
+              {seen_cards if seen_cards else seen_empty}
+            </div>
+          </div>
+        </div>
 
         <!-- Footer -->
         <div style="text-align:center;padding:24px;color:#9ca3af;font-size:12px;">
