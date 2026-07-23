@@ -30,7 +30,8 @@ def init_db():
             match_score REAL,
             first_seen  TEXT,
             processed   INTEGER DEFAULT 0,
-            applied     INTEGER DEFAULT 0
+            applied     INTEGER DEFAULT 0,
+            viewed      INTEGER DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS digests (
@@ -40,11 +41,15 @@ def init_db():
             status      TEXT
         );
         """)
-        # Migration: add applied column to existing DBs
-        try:
-            conn.execute("ALTER TABLE seen_jobs ADD COLUMN applied INTEGER DEFAULT 0")
-        except Exception:
-            pass  # column already exists
+        # Migration: add columns to existing DBs
+        for ddl in (
+            "ALTER TABLE seen_jobs ADD COLUMN applied INTEGER DEFAULT 0",
+            "ALTER TABLE seen_jobs ADD COLUMN viewed INTEGER DEFAULT 0",
+        ):
+            try:
+                conn.execute(ddl)
+            except Exception:
+                pass  # column already exists
 
 
 def is_seen(job_id: str) -> bool:
@@ -84,6 +89,21 @@ def mark_applied(job_id: str, applied: bool = True):
         conn.execute(
             "UPDATE seen_jobs SET applied = ? WHERE id = ?",
             (1 if applied else 0, job_id)
+        )
+
+
+def mark_viewed(job_ids: list):
+    """
+    Mark the given job ids as viewed, so they move from the "New" column
+    into "Seen" on the next digest load. Called after rendering a digest
+    page, using the ids that were just shown as New.
+    """
+    if not job_ids:
+        return
+    with get_connection() as conn:
+        conn.executemany(
+            "UPDATE seen_jobs SET viewed = 1 WHERE id = ?",
+            [(jid,) for jid in job_ids]
         )
 
 
