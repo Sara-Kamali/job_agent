@@ -11,7 +11,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs
 
-from core.db import mark_applied, get_recent_jobs
+from core.db import mark_applied, mark_viewed, get_recent_jobs
 from core.cv_parser import extract_pdf_text
 
 _state = {"processing": False}
@@ -36,6 +36,10 @@ class DigestHandler(BaseHTTPRequestHandler):
             ]
             body = build_html(jobs).encode("utf-8")
             self._respond(200, "text/html; charset=utf-8", body)
+            # Whatever just rendered under "New" (viewed=0) should show as
+            # "Seen" on the *next* load, so flip them now, after rendering.
+            newly_viewed_ids = [j["id"] for j in jobs if not j.get("viewed", 0)]
+            mark_viewed(newly_viewed_ids)
         elif self.path == "/status":
             rows = get_recent_jobs(days=self.days)
             body = json.dumps({
