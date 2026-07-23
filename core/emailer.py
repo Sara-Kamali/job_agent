@@ -90,7 +90,7 @@ def _render_job_card(job: Dict) -> str:
     checked_attr = "checked" if applied else ""
 
     return f"""
-    <div class="job-card" style="border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin:0 0 14px;
+    <div class="job-card" data-job-id={job_id_js} style="border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin:0 0 14px;
                 background:#ffffff;border-left:4px solid {color};opacity:{card_opacity};
                 transition:opacity 0.2s;">
       <div style="display:flex;align-items:flex-start;gap:12px;">
@@ -123,6 +123,7 @@ def _render_job_card(job: Dict) -> str:
             {threshold_badge}
             {applied_badge}
             <a href="{job.get('url','#')}" target="_blank" rel="noopener noreferrer"
+               onclick="markViewed({job_id_js}, this)"
                style="background:#2563eb;color:#fff;padding:6px 16px;border-radius:8px;
                       text-decoration:none;font-size:13px;font-weight:500;">
               View Job →
@@ -218,6 +219,43 @@ def build_html(jobs: List[Dict]) -> str:
             alert('Cache cleared. Your preferences have been reset.');
           }}
         }}
+
+        async function markViewed(jobId, linkEl) {{
+          // Fire-and-forget: don't block the "View Job" click/new-tab opening.
+          try {{
+            fetch('/view', {{
+              method: 'POST',
+              headers: {{'Content-Type': 'application/json'}},
+              body: JSON.stringify({{id: jobId}})
+            }});
+          }} catch (e) {{ /* ignore — worst case it re-appears under New next load */ }}
+
+          const card = linkEl.closest('.job-card');
+          if (!card || card.dataset.moved === '1') return;
+          card.dataset.moved = '1';
+
+          const newList = document.getElementById('new-list');
+          const seenList = document.getElementById('seen-list');
+          const newCountEl = document.getElementById('new-count');
+          const seenCountEl = document.getElementById('seen-count');
+          const newEmpty = document.getElementById('new-empty');
+          const seenEmpty = document.getElementById('seen-empty');
+
+          // Slide the card from New into the top of Seen.
+          card.style.transition = 'opacity 0.25s';
+          card.style.opacity = '0.3';
+          setTimeout(() => {{
+            seenList.insertBefore(card, seenList.firstChild);
+            card.style.opacity = '1';
+          }}, 150);
+
+          const newCount = Math.max(0, parseInt(newCountEl.textContent || '0', 10) - 1);
+          const seenCount = parseInt(seenCountEl.textContent || '0', 10) + 1;
+          newCountEl.textContent = newCount;
+          seenCountEl.textContent = seenCount;
+          if (newEmpty) newEmpty.style.display = newCount === 0 ? 'block' : 'none';
+          if (seenEmpty) seenEmpty.style.display = 'none';
+        }}
       </script>
     </head>
     <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
@@ -254,21 +292,25 @@ def build_html(jobs: List[Dict]) -> str:
           <div>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
               <h2 style="margin:0;font-size:15px;color:#111827;">🆕 New</h2>
-              <span style="background:#dbeafe;color:#1e40af;font-size:12px;font-weight:600;
+              <span id="new-count" style="background:#dbeafe;color:#1e40af;font-size:12px;font-weight:600;
                            padding:2px 9px;border-radius:10px;">{len(new_jobs)}</span>
             </div>
-            <div class="column-scroll">
-              {new_cards if new_cards else new_empty}
+            <div class="column-scroll" id="new-list">
+              {new_cards}
+              <p id="new-empty" style="text-align:center;color:#6b7280;padding:30px 10px;font-size:13px;
+                 display:{'none' if new_cards else 'block'};">No new jobs since your last visit.</p>
             </div>
           </div>
           <div>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
               <h2 style="margin:0;font-size:15px;color:#6b7280;">👀 Seen</h2>
-              <span style="background:#f3f4f6;color:#6b7280;font-size:12px;font-weight:600;
+              <span id="seen-count" style="background:#f3f4f6;color:#6b7280;font-size:12px;font-weight:600;
                            padding:2px 9px;border-radius:10px;">{len(seen_jobs)}</span>
             </div>
-            <div class="column-scroll">
-              {seen_cards if seen_cards else seen_empty}
+            <div class="column-scroll" id="seen-list">
+              {seen_cards}
+              <p id="seen-empty" style="text-align:center;color:#6b7280;padding:30px 10px;font-size:13px;
+                 display:{'none' if seen_cards else 'block'};">Nothing seen yet.</p>
             </div>
           </div>
         </div>
