@@ -20,7 +20,7 @@ from core.user_config import load_config
 
 
 # ── Config ──────────────────────────────────────────────────────────────────
-MAX_JOBS_PER_SOURCE = 20
+MAX_JOBS_PER_SOURCE = 50
 
 
 def log(msg: str):
