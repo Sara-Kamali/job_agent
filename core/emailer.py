@@ -177,11 +177,11 @@ def build_html(jobs: List[Dict]) -> str:
             }} else {{
               bar.style.display = 'none';
             }}
-            if (s.count > _baselineCount) {{
-              refreshBar.style.display = 'block';
-              refreshBar.textContent = (s.count - _baselineCount) +
-                ' new job(s) found \u2014 click here to refresh';
-            }}
+            const _diff = s.count - _baselineCount;
+            refreshBar.style.display = 'block';
+            refreshBar.textContent = _diff > 0
+              ? (_diff + ' new job(s) found \u2014 click here to refresh')
+              : '0 new jobs found';
             setTimeout(_poll, 4000);
           }} catch(e) {{ /* server not reachable, stop polling */ }}
         }}
@@ -287,16 +287,16 @@ def build_html(jobs: List[Dict]) -> str:
       <div style="max-width:1180px;margin:0 auto;">
 
         <!-- Live scraping banner -->
-        <div id="live-bar" style="display:none;background:#fef9c3;color:#854d0e;
-             border-radius:10px;padding:10px 16px;margin-bottom:12px;
-             font-size:13px;font-weight:500;text-align:center;"></div>
+        <div id="live-bar" style="display:none;background:#1e3a5f;color:#ffffff;
+             border-radius:10px;padding:14px 18px;margin-bottom:12px;
+             font-size:16px;font-weight:600;text-align:center;"></div>
 
         <!-- Manual refresh prompt (replaces the old auto-reload) -->
         <div id="refresh-bar" onclick="location.reload()"
-             style="display:none;background:#fbbf24;color:#4a2c00;border-radius:10px;
+             style="background:#fbbf24;color:#4a2c00;border-radius:10px;
                     padding:16px 20px;margin-bottom:12px;font-size:18px;font-weight:700;
                     text-align:center;cursor:pointer;
-                    box-shadow:0 2px 10px rgba(251,191,36,0.45);"></div>
+                    box-shadow:0 2px 10px rgba(251,191,36,0.45);">0 new jobs found</div>
 
         <!-- Selection toolbar: appears when jobs are checked -->
         <div id="select-toolbar"
