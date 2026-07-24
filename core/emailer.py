@@ -33,21 +33,9 @@ def _render_job_card(job: Dict) -> str:
     pct = int(score * 100)
     color = score_color(score)
     bar = score_bar(score)
-    applied = bool(job.get("applied", 0))
     job_id_js = _json.dumps(job.get("id", ""))
     _raw_id = str(job.get("id", ""))
     job_id_onclick = "'" + _raw_id.replace("\\", "\\\\").replace("'", "\\'") + "'"
-
-    card_opacity = "0.5" if applied else "1"
-    applied_badge = (
-        '<span class="applied-badge" style="background:#dcfce7;color:#166534;font-size:11px;'
-        'padding:2px 8px;border-radius:10px;">✓ Applied</span>'
-    )
-    if not applied:
-        applied_badge = (
-            '<span class="applied-badge" style="display:none;background:#dcfce7;color:#166534;'
-            'font-size:11px;padding:2px 8px;border-radius:10px;">✓ Applied</span>'
-        )
 
     desc = job.get("description", "")
     snippet = (desc[:220] + "…") if len(desc) > 220 else desc
@@ -89,19 +77,17 @@ def _render_job_card(job: Dict) -> str:
         f'<span style="background:#f3f4f6;color:#6b7280;font-size:11px;'
         f'padding:2px 8px;border-radius:10px;">Below threshold</span>'
     )
-    checked_attr = "checked" if applied else ""
-
     return f"""
     <div class="job-card" data-job-id={job_id_js} style="border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin:0 0 14px;
-                background:#ffffff;border-left:4px solid {color};opacity:{card_opacity};
+                background:#ffffff;border-left:4px solid {color};opacity:1;
                 transition:opacity 0.2s;">
       <div style="display:flex;align-items:flex-start;gap:12px;">
         <label style="display:flex;align-items:center;margin-top:3px;cursor:pointer;flex-shrink:0;"
-               title="Mark as applied">
-          <input type="checkbox" {checked_attr}
+               title="Select this job">
+          <input type="checkbox" class="job-select"
                  data-job-id={job_id_js}
-                 onchange="toggleApplied(this)"
-                 style="width:18px;height:18px;cursor:pointer;accent-color:#16a34a;">
+                 onchange="updateSelection()"
+                 style="width:18px;height:18px;cursor:pointer;accent-color:#dc2626;">
         </label>
         <div style="flex:1;min-width:0;">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;">
@@ -123,7 +109,6 @@ def _render_job_card(job: Dict) -> str:
           <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
             {source_badge}
             {threshold_badge}
-            {applied_badge}
             <a href="{job.get('url','#')}" target="_blank" rel="noopener noreferrer"
                onclick="markViewed({job_id_onclick}, this)"
                style="background:#2563eb;color:#fff;padding:6px 16px;border-radius:8px;
@@ -175,44 +160,81 @@ def build_html(jobs: List[Dict]) -> str:
         .column-scroll {{ max-height: 80vh; overflow-y: auto; padding-right: 4px; }}
       </style>
       <script>
-        // Live update: poll /status and reload when new jobs arrive
-        let _knownCount = null;
+        // Live status poll. NOTE: this deliberately never calls location.reload().
+        // Auto-reloading during a scrape was resetting scroll position every few
+        // seconds. Instead we show a banner and let YOU choose when to refresh.
+        let _baselineCount = null;
         async function _poll() {{
           try {{
             const r = await fetch('/status');
             const s = await r.json();
-            if (_knownCount === null) _knownCount = s.count;
-            if (s.count !== _knownCount) {{ location.reload(); return; }}
+            if (_baselineCount === null) _baselineCount = s.count;
             const bar = document.getElementById('live-bar');
+            const refreshBar = document.getElementById('refresh-bar');
             if (s.processing) {{
               bar.style.display = 'block';
               bar.textContent = 'Scraping in progress\u2026 ' + s.count + ' jobs found so far';
-              setTimeout(_poll, 3000);
             }} else {{
               bar.style.display = 'none';
             }}
+            if (s.count > _baselineCount) {{
+              refreshBar.style.display = 'block';
+              refreshBar.textContent = (s.count - _baselineCount) +
+                ' new job(s) found \u2014 click here to refresh';
+            }}
+            setTimeout(_poll, 4000);
           }} catch(e) {{ /* server not reachable, stop polling */ }}
         }}
         _poll();
 
-        async function toggleApplied(checkbox) {{
-          const jobId = checkbox.dataset.jobId;
-          const applied = checkbox.checked;
-          const card = checkbox.closest('.job-card');
-          const badge = card.querySelector('.applied-badge');
+        function updateSelection() {{
+          const n = document.querySelectorAll('.job-select:checked').length;
+          const toolbar = document.getElementById('select-toolbar');
+          const label = document.getElementById('select-count');
+          label.textContent = n + ' selected';
+          toolbar.style.display = n > 0 ? 'flex' : 'none';
+        }}
+
+        function clearSelection() {{
+          document.querySelectorAll('.job-select:checked').forEach(cb => cb.checked = false);
+          updateSelection();
+        }}
+
+        async function deleteSelected() {{
+          const boxes = Array.from(document.querySelectorAll('.job-select:checked'));
+          if (!boxes.length) return;
+          const ids = boxes.map(cb => cb.dataset.jobId);
+          if (!confirm('Delete ' + ids.length + ' job(s) from the digest? This cannot be undone.')) return;
           try {{
-            const resp = await fetch('/apply', {{
+            const resp = await fetch('/delete', {{
               method: 'POST',
               headers: {{'Content-Type': 'application/json'}},
-              body: JSON.stringify({{id: jobId, applied: applied}})
+              body: JSON.stringify({{ids: ids}})
             }});
             if (!resp.ok) throw new Error('Server error');
-            card.style.opacity = applied ? '0.5' : '1';
-            badge.style.display = applied ? 'inline-block' : 'none';
           }} catch(e) {{
-            checkbox.checked = !applied;
-            alert('Could not save. Is the job agent server running?');
+            alert('Could not delete. Is the job agent server running?');
+            return;
           }}
+          boxes.forEach(cb => {{
+            const card = cb.closest('.job-card');
+            if (!card) return;
+            const inNew = !!card.closest('#new-list');
+            card.style.transition = 'opacity 0.2s';
+            card.style.opacity = '0';
+            setTimeout(() => card.remove(), 200);
+            const el = document.getElementById(inNew ? 'new-count' : 'seen-count');
+            if (el) el.textContent = Math.max(0, parseInt(el.textContent || '0', 10) - 1);
+          }});
+          setTimeout(() => {{
+            const ne = document.getElementById('new-empty');
+            const se = document.getElementById('seen-empty');
+            if (ne) ne.style.display =
+              document.querySelectorAll('#new-list .job-card').length ? 'none' : 'block';
+            if (se) se.style.display =
+              document.querySelectorAll('#seen-list .job-card').length ? 'none' : 'block';
+          }}, 250);
+          clearSelection();
         }}
 
         function clearCache() {{
@@ -269,6 +291,31 @@ def build_html(jobs: List[Dict]) -> str:
              border-radius:10px;padding:10px 16px;margin-bottom:12px;
              font-size:13px;font-weight:500;text-align:center;"></div>
 
+        <!-- Manual refresh prompt (replaces the old auto-reload) -->
+        <div id="refresh-bar" onclick="location.reload()"
+             style="display:none;background:#dbeafe;color:#1e40af;border-radius:10px;
+                    padding:10px 16px;margin-bottom:12px;font-size:13px;font-weight:500;
+                    text-align:center;cursor:pointer;"></div>
+
+        <!-- Selection toolbar: appears when jobs are checked -->
+        <div id="select-toolbar"
+             style="display:none;position:sticky;top:10px;z-index:20;
+                    background:#111827;color:#fff;border-radius:10px;
+                    padding:10px 16px;margin-bottom:12px;
+                    align-items:center;gap:12px;justify-content:space-between;
+                    box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+          <span id="select-count" style="font-size:13px;font-weight:600;">0 selected</span>
+          <span style="display:flex;gap:8px;">
+            <button onclick="clearSelection()"
+                    style="background:#374151;color:#fff;border:none;padding:6px 14px;
+                           border-radius:8px;cursor:pointer;font-size:13px;">Clear</button>
+            <button onclick="deleteSelected()"
+                    style="background:#dc2626;color:#fff;border:none;padding:6px 16px;
+                           border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;">
+              🗑 Delete selected</button>
+          </span>
+        </div>
+
         <!-- Navigation -->
         <div style="margin-bottom:20px;display:flex;gap:16px;justify-content:space-between;">
           <div style="display:flex;gap:16px;">
@@ -319,7 +366,7 @@ def build_html(jobs: List[Dict]) -> str:
 
         <!-- Footer -->
         <div style="text-align:center;padding:24px;color:#9ca3af;font-size:12px;">
-          <p>Job Agent · sorted by match score · check a job to mark as applied</p>
+          <p>Job Agent · sorted by match score · select jobs to delete them</p>
         </div>
       </div>
     </body>
