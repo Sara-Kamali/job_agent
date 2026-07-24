@@ -40,10 +40,17 @@ class DigestHandler(BaseHTTPRequestHandler):
             # from "New" to "Seen" when the person actually clicks into it
             # (see the /view endpoint, triggered by the "View Job" link).
         elif self.path == "/status":
+            from core.filters import MATCH_THRESHOLD
             rows = get_recent_jobs(days=self.days)
+            # Count the SAME way /digest does (scored AND above threshold), so
+            # this banner never promises jobs that won't actually appear when
+            # clicked. The raw scrape count includes unscored (score=0) jobs
+            # and jobs that scored below the threshold.
+            matched = sum(1 for r in rows if (r["match_score"] or 0) >= MATCH_THRESHOLD)
             body = json.dumps({
                 "processing": _state["processing"],
-                "count": len(rows),
+                "count": matched,
+                "raw_count": len(rows),
             }).encode()
             self._respond(200, "application/json", body)
         elif self.path == "/test":
