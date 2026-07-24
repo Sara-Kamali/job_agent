@@ -11,7 +11,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs
 
-from core.db import mark_applied, mark_viewed, get_recent_jobs
+from core.db import mark_applied, mark_viewed, mark_deleted, get_recent_jobs
 from core.cv_parser import extract_pdf_text
 
 _state = {"processing": False}
@@ -414,6 +414,14 @@ console.log('Script loaded');
             length = int(self.headers.get("Content-Length", 0))
             data = json.loads(self.rfile.read(length))
             mark_applied(data.get("id", ""), data.get("applied", True))
+            self._respond(200, "application/json", b'{"ok":true}')
+        elif self.path == "/delete":
+            length = int(self.headers.get("Content-Length", 0))
+            data = json.loads(self.rfile.read(length))
+            ids = data.get("ids", [])
+            if isinstance(ids, str):
+                ids = [ids]
+            mark_deleted(ids)
             self._respond(200, "application/json", b'{"ok":true}')
         elif self.path == "/view":
             length = int(self.headers.get("Content-Length", 0))
