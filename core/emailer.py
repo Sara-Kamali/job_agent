@@ -70,6 +70,12 @@ def _render_job_card(job: Dict) -> str:
         f'<span style="background:#e0e7ff;color:#3730a3;font-size:11px;'
         f'padding:2px 8px;border-radius:10px;">{job.get("source","").upper()}</span>'
     )
+    phd_badge = (
+        '<span title="Mentions PhD / doctorate / graduate degree" '
+        'style="background:#fce7f3;color:#9d174d;font-size:11px;font-weight:600;'
+        'padding:2px 9px;border-radius:10px;">⭐ PhD level</span>'
+    ) if job.get("phd_level") else ""
+
     threshold_badge = (
         f'<span style="background:#dcfce7;color:#166534;font-size:11px;'
         f'padding:2px 8px;border-radius:10px;">Good match</span>'
@@ -109,6 +115,7 @@ def _render_job_card(job: Dict) -> str:
           <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
             {source_badge}
             {threshold_badge}
+            {phd_badge}
             <a href="{job.get('url','#')}" target="_blank" rel="noopener noreferrer"
                onclick="markViewed({job_id_onclick}, this)"
                style="background:#2563eb;color:#fff;padding:6px 16px;border-radius:8px;
