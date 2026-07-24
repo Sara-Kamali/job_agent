@@ -47,6 +47,23 @@ PHD_KEYWORDS = [
 ]
 
 
+# Slightly broader than PHD_KEYWORDS: used only to DECIDE whether to show the
+# "PhD level" badge on a job card, never to filter jobs out. Includes
+# "graduate degree" per the badge spec, which PHD_KEYWORDS deliberately
+# excludes (too broad to use as a hard filter — most Master's roles say this).
+BADGE_PHD_KEYWORDS = PHD_KEYWORDS + ["graduate degree"]
+
+
+def is_phd_level(description: str, title: str = "") -> bool:
+    """
+    Returns True if the job mentions a PhD, doctorate, or graduate degree
+    anywhere in the title or description. Used only to show a badge — this
+    never removes a job from the digest.
+    """
+    text = f"{title} {description}".lower()
+    return any(k in text for k in BADGE_PHD_KEYWORDS)
+
+
 def phd_matches(description: str, enabled: bool = False, keywords: list = None) -> bool:
     """
     When enabled, return True only if the description mentions a PhD / doctorate.
