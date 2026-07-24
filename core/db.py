@@ -32,7 +32,8 @@ def init_db():
             processed   INTEGER DEFAULT 0,
             applied     INTEGER DEFAULT 0,
             viewed      INTEGER DEFAULT 0,
-            deleted     INTEGER DEFAULT 0
+            deleted     INTEGER DEFAULT 0,
+            phd_level   INTEGER DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS digests (
@@ -47,6 +48,7 @@ def init_db():
             "ALTER TABLE seen_jobs ADD COLUMN applied INTEGER DEFAULT 0",
             "ALTER TABLE seen_jobs ADD COLUMN viewed INTEGER DEFAULT 0",
             "ALTER TABLE seen_jobs ADD COLUMN deleted INTEGER DEFAULT 0",
+            "ALTER TABLE seen_jobs ADD COLUMN phd_level INTEGER DEFAULT 0",
         ):
             try:
                 conn.execute(ddl)
@@ -63,11 +65,13 @@ def is_seen(job_id: str) -> bool:
 
 
 def mark_seen(job: dict):
+    from core.filters import is_phd_level
+    phd_level = 1 if is_phd_level(job.get("description", ""), job.get("title", "")) else 0
     with get_connection() as conn:
         conn.execute("""
             INSERT OR IGNORE INTO seen_jobs
-              (id, source, title, company, location, url, match_score, first_seen, processed)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+              (id, source, title, company, location, url, match_score, first_seen, processed, phd_level)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             job["id"],
             job.get("source", ""),
@@ -77,7 +81,8 @@ def mark_seen(job: dict):
             job.get("url", ""),
             job.get("match_score", 0.0),
             datetime.now().isoformat(),
-            1
+            1,
+            phd_level
         ))
 
 
