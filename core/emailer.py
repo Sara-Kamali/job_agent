@@ -168,20 +168,25 @@ def build_html(jobs: List[Dict]) -> str:
           try {{
             const r = await fetch('/status');
             const s = await r.json();
+            // s.count = scored AND above your match threshold (what /digest shows).
+            // s.raw_count = every scraped listing, including unscored ones still
+            // waiting on Ollama. The scraping bar uses raw_count (activity signal);
+            // the refresh bar uses count (only promises jobs that will actually
+            // appear when clicked).
             if (_baselineCount === null) _baselineCount = s.count;
             const bar = document.getElementById('live-bar');
             const refreshBar = document.getElementById('refresh-bar');
             if (s.processing) {{
               bar.style.display = 'block';
-              bar.textContent = 'Scraping in progress\u2026 ' + s.count + ' jobs found so far';
+              bar.textContent = 'Scraping in progress\u2026 ' + s.raw_count + ' jobs found so far';
             }} else {{
               bar.style.display = 'none';
             }}
             const _diff = s.count - _baselineCount;
             refreshBar.style.display = 'block';
             refreshBar.textContent = _diff > 0
-              ? (_diff + ' new job(s) found \u2014 click here to refresh')
-              : '0 new jobs found';
+              ? (_diff + ' new match(es) found \u2014 click here to refresh')
+              : '0 new matches found';
             setTimeout(_poll, 4000);
           }} catch(e) {{ /* server not reachable, stop polling */ }}
         }}
@@ -296,7 +301,7 @@ def build_html(jobs: List[Dict]) -> str:
              style="background:#fbbf24;color:#4a2c00;border-radius:10px;
                     padding:16px 20px;margin-bottom:12px;font-size:18px;font-weight:700;
                     text-align:center;cursor:pointer;
-                    box-shadow:0 2px 10px rgba(251,191,36,0.45);">0 new jobs found</div>
+                    box-shadow:0 2px 10px rgba(251,191,36,0.45);">0 new matches found</div>
 
         <!-- Selection toolbar: appears when jobs are checked -->
         <div id="select-toolbar"
