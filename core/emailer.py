@@ -35,6 +35,8 @@ def _render_job_card(job: Dict) -> str:
     bar = score_bar(score)
     applied = bool(job.get("applied", 0))
     job_id_js = _json.dumps(job.get("id", ""))
+    _raw_id = str(job.get("id", ""))
+    job_id_onclick = "'" + _raw_id.replace("\\", "\\\\").replace("'", "\\'") + "'"
 
     card_opacity = "0.5" if applied else "1"
     applied_badge = (
@@ -123,7 +125,7 @@ def _render_job_card(job: Dict) -> str:
             {threshold_badge}
             {applied_badge}
             <a href="{job.get('url','#')}" target="_blank" rel="noopener noreferrer"
-               onclick="markViewed({job_id_js}, this)"
+               onclick="markViewed({job_id_onclick}, this)"
                style="background:#2563eb;color:#fff;padding:6px 16px;border-radius:8px;
                       text-decoration:none;font-size:13px;font-weight:500;">
               View Job →
