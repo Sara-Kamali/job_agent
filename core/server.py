@@ -524,7 +524,7 @@ def start_server_thread(days: int = 30, port: int = 8765):
     t.start()
     url = f"http://localhost:{port}"
     print(f"[Digest] Live at {url}")
-    webbrowser.open(url)
+    webbrowser.open(f"{url}/digest")
     return httpd
 
 
@@ -538,7 +538,7 @@ def serve_digest(days: int = 30, port: int = 8765):
     httpd = _make_server(days, port)
     url = f"http://localhost:{port}"
     print(f"[Digest] Serving at {url}  (Ctrl+C to stop)")
-    webbrowser.open(url)
+    webbrowser.open(f"{url}/digest")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
