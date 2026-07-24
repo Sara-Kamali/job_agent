@@ -293,9 +293,10 @@ def build_html(jobs: List[Dict]) -> str:
 
         <!-- Manual refresh prompt (replaces the old auto-reload) -->
         <div id="refresh-bar" onclick="location.reload()"
-             style="display:none;background:#dbeafe;color:#1e40af;border-radius:10px;
-                    padding:10px 16px;margin-bottom:12px;font-size:13px;font-weight:500;
-                    text-align:center;cursor:pointer;"></div>
+             style="display:none;background:#fbbf24;color:#4a2c00;border-radius:10px;
+                    padding:16px 20px;margin-bottom:12px;font-size:18px;font-weight:700;
+                    text-align:center;cursor:pointer;
+                    box-shadow:0 2px 10px rgba(251,191,36,0.45);"></div>
 
         <!-- Selection toolbar: appears when jobs are checked -->
         <div id="select-toolbar"
