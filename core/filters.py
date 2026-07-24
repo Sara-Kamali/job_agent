@@ -86,6 +86,10 @@ DEFAULT_HARD_EXCLUDE_KEYWORDS = [
     "security clearance", "top secret", "classified clearance",
     "department of defense", "ministry of defence", "aerospace and defense",
     "aerospace and defence", "cbrne", "battlefield", "munitions",
+    "national security", "homeland security", "defense industry",
+    "defence industry", "defense sciences", "defence sciences",
+    "armed forces", "counterterrorism", "counter-terrorism",
+    " defense ", " defence ", "defense agency", "defence agency",
 ]
 
 
