@@ -31,7 +31,8 @@ def init_db():
             first_seen  TEXT,
             processed   INTEGER DEFAULT 0,
             applied     INTEGER DEFAULT 0,
-            viewed      INTEGER DEFAULT 0
+            viewed      INTEGER DEFAULT 0,
+            deleted     INTEGER DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS digests (
@@ -45,6 +46,7 @@ def init_db():
         for ddl in (
             "ALTER TABLE seen_jobs ADD COLUMN applied INTEGER DEFAULT 0",
             "ALTER TABLE seen_jobs ADD COLUMN viewed INTEGER DEFAULT 0",
+            "ALTER TABLE seen_jobs ADD COLUMN deleted INTEGER DEFAULT 0",
         ):
             try:
                 conn.execute(ddl)
@@ -92,6 +94,23 @@ def mark_applied(job_id: str, applied: bool = True):
         )
 
 
+def mark_deleted(job_ids: list):
+    """
+    Soft-delete: hide these jobs from the digest permanently.
+
+    The row is kept (not DROPped) on purpose. is_seen() still returns True for
+    it, so the next scrape recognizes the job as already-processed and will not
+    re-add it. A hard DELETE would make deleted jobs reappear on every run.
+    """
+    if not job_ids:
+        return
+    with get_connection() as conn:
+        conn.executemany(
+            "UPDATE seen_jobs SET deleted = 1 WHERE id = ?",
+            [(jid,) for jid in job_ids]
+        )
+
+
 def mark_viewed(job_ids: list):
     """
     Mark the given job ids as viewed, so they move from the "New" column
@@ -120,5 +139,6 @@ def get_recent_jobs(days: int = 7):
         return conn.execute("""
             SELECT * FROM seen_jobs
             WHERE first_seen >= datetime('now', ?)
+              AND COALESCE(deleted, 0) = 0
             ORDER BY match_score DESC
         """, (f"-{days} days",)).fetchall()
